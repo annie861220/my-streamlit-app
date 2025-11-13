@@ -154,7 +154,8 @@ if submitted:
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_data(df)
         st.sidebar.success("已新增一筆紀錄 ✅")
-        st.experimental_rerun()
+        # 不再呼叫 st.experimental_rerun()
+
 
 # ====== 篩選條件 ======
 st.subheader("篩選條件")
@@ -201,7 +202,7 @@ if not df.empty:
 else:
     filtered_df = df.copy()
 
-# ====== 統計總覽（搬到上面，依照篩選結果） ======
+# ====== 統計總覽（依目前篩選） ======
 st.subheader("統計總覽（依目前篩選）")
 
 if not filtered_df.empty:
@@ -220,13 +221,14 @@ if not filtered_df.empty:
         fig, ax = plt.subplots()
         values = [total_income, total_expense]
         labels = ["收入", "支出"]
-        # 避免 0 造成錯誤，只取 >0 的
+
         values_nonzero = []
         labels_nonzero = []
         for v, l in zip(values, labels):
             if v > 0:
                 values_nonzero.append(v)
                 labels_nonzero.append(l)
+
         if values_nonzero:
             ax.pie(values_nonzero, labels=labels_nonzero, autopct="%1.1f%%")
             ax.set_title("收入 / 支出 比例")
@@ -239,19 +241,18 @@ else:
 
 st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
-# ====== 明細紀錄（可直接編輯 / 勾選刪除） ======
+# ====== 明細紀錄（可修改 / 刪除） ======
 st.subheader("明細紀錄（可修改 / 刪除）")
 
 if filtered_df.empty:
     st.info("目前沒有符合條件的紀錄。")
 else:
-    # 保留原本 df 的 index，之後好對應回去
     edit_df = filtered_df.sort_values("日期", ascending=False).copy()
 
+    # 保留原本 index，之後用來寫回 df
     # 顯示時把日期變成字串
     edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
 
-    # 增加一欄「刪除」
     if "刪除" not in edit_df.columns:
         edit_df["刪除"] = False
 
@@ -265,25 +266,23 @@ else:
     )
 
     if st.button("💾 儲存修改 / 刪除"):
-        # 以原 df 為基礎做更新
         new_df = df.copy()
 
         for idx, row in edited_df.iterrows():
             # idx 是原本 df 的 index（因為我們沒有 reset_index）
+            # 刪除優先處理
             if "刪除" in row and row["刪除"]:
-                # 刪除這筆
                 if idx in new_df.index:
                     new_df = new_df.drop(index=idx)
                 continue
 
-            # 修改這筆
+            # 修改資料
             try:
                 new_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d")
             except ValueError:
                 st.error(f"第 {idx} 列日期格式錯誤，請用 YYYY-MM-DD")
                 continue
 
-            # 把收入 / 支出 / 支出比例轉成數字
             try:
                 new_income = float(row["收入"]) if str(row["收入"]).strip() != "" else 0.0
                 new_expense = float(row["支出"]) if str(row["支出"]).strip() != "" else 0.0
@@ -292,13 +291,11 @@ else:
                 st.error(f"第 {idx} 列的金額或比例欄位有非數字，請修正。")
                 continue
 
-            # 依收入 / 支出決定實際支出（只算支出）
             if new_expense > 0:
                 new_actual = new_expense * (new_ratio / 100.0)
             else:
                 new_actual = 0.0
 
-            # 寫回 df
             if idx in new_df.index:
                 new_df.loc[idx, "日期"] = new_date
                 new_df.loc[idx, "星期"] = row["星期"]
@@ -316,9 +313,9 @@ else:
         df = new_df
         save_data(df)
         st.success("已套用修改 / 刪除 ✅")
-        st.experimental_rerun()
+        # 不再呼叫 st.experimental_rerun()
 
-# ====== 全部資料的長期統計（放在後面當附加資訊） ======
+# ====== 長期統計（全部資料） ======
 st.subheader("長期統計（全部資料）")
 
 if not df.empty:
