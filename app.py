@@ -228,11 +228,11 @@ if not filtered_df.empty:
     c2.metric("支出小計（實際）", f"{total_expense:,.0f}")
     c3.metric("結餘（收入 - 支出）", f"{net:,.0f}")
 
-# ====== 支出按類別圓餅圖（中文＋外框＋內部標籤） ======
+# ====== 支出按類別圓餅圖（類別在表格、圖內只顯示比例） ======
 st.subheader("支出類別分布（依目前篩選）")
 
 if not filtered_df.empty:
-    # 只看實際支出，依類別加總
+    # 只看實際支出，依「類別」加總
     exp_by_cat = (
         filtered_df.groupby("類別")["實際支出"]
         .sum()
@@ -243,42 +243,43 @@ if not filtered_df.empty:
     exp_by_cat = exp_by_cat[exp_by_cat > 0]
 
     if len(exp_by_cat) > 0:
-        # 做一個比較小的圖
-        col_left, col_right = st.columns([1, 1])
-        with col_left:
-            st.write("")
+        values = exp_by_cat.values
+        labels = exp_by_cat.index
+        total = values.sum()
 
-        with col_right:
-            fig, ax = plt.subplots(figsize=(3, 3), dpi=120)
+        # 小一點的圖
+        fig, ax = plt.subplots(figsize=(3, 3), dpi=120)
 
-            values = exp_by_cat.values
-            labels = exp_by_cat.index  # 類別名稱（中文）
+        # 圓餅圖：只顯示百分比，不顯示中文字（避免亂碼）
+        wedges, texts, autotexts = ax.pie(
+            values,
+            labels=None,            # 不在圖上放中文
+            autopct="%1.1f%%",      # 圓內顯示比例
+            startangle=140,
+            pctdistance=0.7,        # 百分比文字偏內側
+        )
 
-            # 畫圓餅圖，標籤放在圓內
-            wedges, texts, autotexts = ax.pie(
-                values,
-                labels=labels,
-                autopct="%1.1f%%",
-                startangle=140,
-                pctdistance=0.7,    # 百分比文字靠內
-                labeldistance=1.1,  # 類別文字位置（可再調）
-            )
+        # 外框
+        for w in wedges:
+            w.set_edgecolor("black")
+            w.set_linewidth(0.8)
 
-            # 加外框
-            for w in wedges:
-                w.set_edgecolor("black")
-                w.set_linewidth(0.8)
+        # 百分比字型大小
+        for t in autotexts:
+            t.set_fontsize(9)
 
-            # 字體大小微調
-            for t in texts:
-                t.set_fontsize(10)      # 類別文字
-            for t in autotexts:
-                t.set_fontsize(9)       # 百分比文字
+        ax.set_title("支出類別比例", fontsize=12)
+        ax.axis("equal")  # 保持圓形
+        st.pyplot(fig)
 
-            ax.set_title("支出類別比例", fontsize=12)
-            ax.axis("equal")  # 圓形
-
-            st.pyplot(fig)
+        # 在圖下方用表格顯示「類別＋金額＋比例」（這裡的中文字一定會正常）
+        percent = (values / total * 100).round(1)
+        summary_df = pd.DataFrame({
+            "類別": labels,
+            "支出金額": values,
+            "比例(%)": percent,
+        })
+        st.dataframe(summary_df, use_container_width=True)
     else:
         st.info("目前篩選中沒有支出資料，無法繪製支出圓餅圖。")
 else:
@@ -396,5 +397,6 @@ if not df.empty:
     st.dataframe(by_month, use_container_width=True)
 else:
     st.info("尚無資料可以統計。")
+
 
 
