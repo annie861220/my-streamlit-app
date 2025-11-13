@@ -569,21 +569,32 @@ def load_assets() -> pd.DataFrame:
     if ASSET_FILE.exists():
         df = pd.read_csv(ASSET_FILE)
 
+        # 補齊缺的欄位
         for col in ASSET_COLUMNS:
             if col not in df.columns:
                 df[col] = None
 
+        # 金額 → 數字
         df["金額"] = pd.to_numeric(df["金額"], errors="coerce").fillna(0)
+
+        # 購買日期 → datetime
         df["購買日期"] = pd.to_datetime(df["購買日期"], errors="coerce")
 
+        # 依購買日期重新計算持有天數
         today = pd.to_datetime(date.today())
         valid_mask = df["購買日期"].notna()
         df.loc[valid_mask, "持有天數"] = (today - df.loc[valid_mask, "購買日期"]).dt.days + 1
         df.loc[~valid_mask, "持有天數"] = 1
-        df.loc[df["持有天數"] <= 0, "持有天數"] = 1
 
+        # 🔴 重點：把「持有天數」轉成數字，避免是文字型態
+        df["持有天數"] = pd.to_numeric(df["持有天數"], errors="coerce")
+        df.loc[df["持有天數"].isna() | (df["持有天數"] <= 0), "持有天數"] = 1
+        df["持有天數"] = df["持有天數"].astype(int)
+
+        # 再來算每日均攤費用（這時一定是數字了）
         df["每日均攤費用"] = (df["金額"] / df["持有天數"]).round(2)
 
+        # 顯示用：只留日期
         df["購買日期"] = df["購買日期"].dt.date
 
         return df[ASSET_COLUMNS]
@@ -591,6 +602,7 @@ def load_assets() -> pd.DataFrame:
         df = pd.DataFrame(columns=ASSET_COLUMNS)
         df.to_csv(ASSET_FILE, index=False, encoding="utf-8-sig")
         return df
+
 
 
 def save_assets(df: pd.DataFrame):
@@ -675,3 +687,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
