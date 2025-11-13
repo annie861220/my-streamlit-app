@@ -287,3 +287,4 @@ if not df.empty:
         st.dataframe(by_month, use_container_width=True)
 else:
     st.info("尚無資料可以統計。")
+
