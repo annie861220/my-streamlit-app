@@ -515,10 +515,13 @@ if not df.empty:
             unsafe_allow_html=True,
         )
 
-      st.markdown("### 依月份統計（卡片式）")
+    # ====== 依月份統計（卡片式） ======
+st.subheader("依月份統計（卡片式）")
 
+if not df.empty:
     month_stats = df.copy()
     month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
+
     by_month = (
         month_stats.groupby("月份")[["收入", "實際支出"]]
         .sum()
@@ -526,39 +529,78 @@ if not df.empty:
         .sort_values("月份", ascending=True)
     )
 
-    if by_month.empty:
-        st.info("尚無月份統計資料。")
-    else:
-        # 每個月份一張卡片，三欄排版
-        cols = [None, None, None]
-        for i, (m, row) in enumerate(by_month.iterrows()):
-            if i % 3 == 0:
-                cols = st.columns(3)
+    # 每個月份一個卡片
+    for ym, row in by_month.iterrows():
+        income = row["收入"]
+        expense = row["支出"]
+        net = income - expense
 
-            income_m = row["收入"]
-            expense_m = row["支出"]
-            net_m = income_m - expense_m
+        st.markdown(
+            f"""
+            <div class="month-card">
+                <div class="month-title">{ym}</div>
 
-            with cols[i % 3]:
-                st.markdown(
-                    f"""
-                    <div class="kpi-card">
-                        <div class="month-card-title">月份</div>
-                        <div class="month-card-month">{m}</div>
+                <div class="month-line">
+                    <div class="month-line-label">收入</div>
+                    <div class="month-line-income">{income:,.0f}</div>
+                </div>
 
-                        <div class="month-line-label">收入</div>
-                        <div class="month-line-income">{income_m:,.0f}</div>
+                <div class="month-line">
+                    <div class="month-line-label">支出</div>
+                    <div class="month-line-expense">{expense:,.0f}</div>
+                </div>
 
-                        <div class="month-line-label">支出</div>
-                        <div class="month-line-expense">{expense_m:,.0f}</div>
-
-                        <div class="month-line-label">結餘</div>
-                        <div class="month-line-net">{net_m:,.0f}</div>
-                    </div>
-                    """,
-                    unsafe_allow_html=True,  # ← 這行一定要在！
-                )
-
+                <div class="month-line">
+                    <div class="month-line-label">結餘</div>
+                    <div class="month-line-net">{net:,.0f}</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 else:
-    st.info("尚無資料可以統計。")
+    st.info("尚無資料可以進行月份統計。")
+/* 月份卡片 */
+.month-card {
+    padding: 1rem 1.2rem;
+    margin-bottom: 1rem;
+    border-radius: 0.8rem;
+    background: #ffffff;
+    border: 1px solid #e5e5e5;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
 
+.month-title {
+    font-size: 1.1rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+}
+
+.month-line {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.25rem 0;
+}
+
+.month-line-label {
+    font-size: 0.85rem;
+    color: #666666;
+}
+
+.month-line-income {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #2e7d32;
+}
+
+.month-line-expense {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #c62828;
+}
+
+.month-line-net {
+    font-size: 1rem;
+    font-weight: 700;
+    color: #1565c0;
+}
