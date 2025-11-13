@@ -2,21 +2,91 @@ import streamlit as st
 import pandas as pd
 from pathlib import Path
 from datetime import datetime, date
-import matplotlib.pyplot as plt  # 圓餅圖用
-
-# 嘗試使用常見的中文字型，沒有的話會自動 fallback
-plt.rcParams["font.sans-serif"] = [
-    "Taipei Sans TC Beta",
-    "Microsoft JhengHei",
-    "Microsoft YaHei",
-    "SimHei",
-    "Noto Sans CJK TC",
-    "sans-serif",
-]
-plt.rcParams["axes.unicode_minus"] = False
-
 
 st.set_page_config(page_title="家芬a整合平台", layout="wide")
+
+# ====== 簡單美化：全域樣式 ======
+st.markdown(
+    """
+    <style>
+    /* 整體背景 & 版面寬度 */
+    .block-container {
+        padding-top: 1.5rem;
+        padding-bottom: 2rem;
+        max-width: 1200px;
+    }
+
+    /* 主標題下面留點空間 */
+    h1 {
+        margin-bottom: 0.2rem;
+    }
+
+    /* 說明文字區塊 */
+    .intro-box {
+        padding: 0.8rem 1rem;
+        border-radius: 0.8rem;
+        background: #fff7f0;
+        border: 1px solid #ffd6aa;
+        font-size: 0.95rem;
+        margin-bottom: 1.2rem;
+    }
+
+    /* 區塊標題前多一點間距 */
+    .main > div > h3 {
+        margin-top: 1.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* KPI 卡片 */
+    .kpi-card {
+        padding: 0.9rem 1rem;
+        border-radius: 0.8rem;
+        background: #ffffff;
+        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .kpi-label {
+        font-size: 0.85rem;
+        color: #777777;
+        margin-bottom: 0.2rem;
+    }
+    .kpi-value {
+        font-size: 1.4rem;
+        font-weight: 700;
+    }
+    .kpi-income .kpi-value {
+        color: #2e7d32;
+    }
+    .kpi-expense .kpi-value {
+        color: #c62828;
+    }
+    .kpi-net .kpi-value {
+        color: #1565c0;
+    }
+
+    /* 篩選條件區塊 */
+    .filter-box {
+        padding: 0.8rem 1rem 0.4rem 1rem;
+        border-radius: 0.8rem;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+    }
+
+    /* 明細提示文字 */
+    .hint-text {
+        font-size: 0.85rem;
+        color: #666666;
+        margin-bottom: 0.4rem;
+    }
+
+    /* Sidebar 標題微調 */
+    section[data-testid="stSidebar"] h2 {
+        margin-top: 0.5rem;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
 
 # ====== 檔案設定 ======
 DATA_FILE = Path("transactions.csv")
@@ -83,17 +153,19 @@ def save_data(df: pd.DataFrame):
 
 df = load_data()
 
+# ====== 標題 & 說明 ======
 st.title("📒 嘎昏 a 記帳小程式")
 
 st.markdown(
     """
-這是說明：  
-**保持可愛。**  
-
-- 每月 5 號發薪水  
-- 要存錢  
-- 不要死掉。
-"""
+    <div class="intro-box">
+    <b>使用說明：</b><br>
+    ‧ 每月 5 號發薪水，記得先把自己存起來<br>
+    ‧ 平常乖乖記帳，就知道錢跑去哪裡<br>
+    ‧ 最重要的是：不要死掉，要快樂花錢 🥹
+    </div>
+    """,
+    unsafe_allow_html=True,
 )
 
 # ====== 側邊欄：新增紀錄 ======
@@ -166,39 +238,42 @@ if submitted:
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_data(df)
         st.sidebar.success("已新增一筆紀錄 ✅")
-        # 不再呼叫 st.experimental_rerun()
 
 
 # ====== 篩選條件 ======
 st.subheader("篩選條件")
 
-col1, col2, col3, col4 = st.columns(4)
+with st.container():
+    st.markdown('<div class="filter-box">', unsafe_allow_html=True)
+    col1, col2, col3, col4 = st.columns(4)
 
-if not df.empty:
-    min_date = df["日期"].min().date()
-    max_date = df["日期"].max().date()
-else:
-    min_date = max_date = date.today()
+    if not df.empty:
+        min_date = df["日期"].min().date()
+        max_date = df["日期"].max().date()
+    else:
+        min_date = max_date = date.today()
 
-with col1:
-    start_date = st.date_input("起始日期", min_date)
+    with col1:
+        start_date = st.date_input("起始日期", min_date)
 
-with col2:
-    end_date = st.date_input("結束日期", max_date)
+    with col2:
+        end_date = st.date_input("結束日期", max_date)
 
-with col3:
-    category_filter = st.multiselect(
-        "類別篩選（空白 = 全部）",
-        options=CATEGORY_OPTIONS,
-        default=[],
-    )
+    with col3:
+        category_filter = st.multiselect(
+            "類別篩選（空白 = 全部）",
+            options=CATEGORY_OPTIONS,
+            default=[],
+        )
 
-with col4:
-    payment_filter = st.multiselect(
-        "支付方式篩選（空白 = 全部）",
-        options=PAYMENT_OPTIONS,
-        default=[],
-    )
+    with col4:
+        payment_filter = st.multiselect(
+            "支付方式篩選（空白 = 全部）",
+            options=PAYMENT_OPTIONS,
+            default=[],
+        )
+
+    st.markdown('</div>', unsafe_allow_html=True)
 
 if not df.empty:
     mask = (
@@ -214,6 +289,8 @@ if not df.empty:
 else:
     filtered_df = df.copy()
 
+st.write(f"符合條件的筆數：**{len(filtered_df)}**")
+
 # ====== 統計總覽（依目前篩選） ======
 st.subheader("統計總覽（依目前篩選）")
 
@@ -223,67 +300,41 @@ if not filtered_df.empty:
     total_expense = stats_df["實際支出"].sum()
     net = total_income - total_expense
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("收入小計", f"{total_income:,.0f}")
-    c2.metric("支出小計（實際）", f"{total_expense:,.0f}")
-    c3.metric("結餘（收入 - 支出）", f"{net:,.0f}")
-
-# ====== 支出按類別圓餅圖（類別在表格、圖內只顯示比例） ======
-st.subheader("支出類別分布（依目前篩選）")
-
-if not filtered_df.empty:
-    # 只看實際支出，依「類別」加總
-    exp_by_cat = (
-        filtered_df.groupby("類別")["實際支出"]
-        .sum()
-        .sort_values(ascending=False)
-    )
-
-    # 去掉支出為 0 的類別
-    exp_by_cat = exp_by_cat[exp_by_cat > 0]
-
-    if len(exp_by_cat) > 0:
-        values = exp_by_cat.values
-        labels = exp_by_cat.index
-        total = values.sum()
-
-        # 小一點的圖
-        fig, ax = plt.subplots(figsize=(3, 3), dpi=120)
-
-        # 圓餅圖：只顯示百分比，不顯示中文字（避免亂碼）
-        wedges, texts, autotexts = ax.pie(
-            values,
-            labels=None,            # 不在圖上放中文
-            autopct="%1.1f%%",      # 圓內顯示比例
-            startangle=140,
-            pctdistance=0.7,        # 百分比文字偏內側
+    k1, k2, k3 = st.columns(3)
+    with k1:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-income">
+                <div class="kpi-label">收入小計</div>
+                <div class="kpi-value">{total_income:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
         )
-
-        # 外框
-        for w in wedges:
-            w.set_edgecolor("black")
-            w.set_linewidth(0.8)
-
-        # 百分比字型大小
-        for t in autotexts:
-            t.set_fontsize(9)
-
-        ax.set_title("支出類別比例", fontsize=12)
-        ax.axis("equal")  # 保持圓形
-        st.pyplot(fig)
-
-        # 在圖下方用表格顯示「類別＋金額＋比例」（這裡的中文字一定會正常）
-        percent = (values / total * 100).round(1)
-        summary_df = pd.DataFrame({
-            "類別": labels,
-            "支出金額": values,
-            "比例(%)": percent,
-        })
-        st.dataframe(summary_df, use_container_width=True)
-    else:
-        st.info("目前篩選中沒有支出資料，無法繪製支出圓餅圖。")
+    with k2:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-expense">
+                <div class="kpi-label">支出小計（實際）</div>
+                <div class="kpi-value">{total_expense:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with k3:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-net">
+                <div class="kpi-label">結餘（收入 - 支出）</div>
+                <div class="kpi-value">{net:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 else:
-    st.info("目前篩選沒有任何紀錄，無法繪製支出圓餅圖。")
+    st.info("目前篩選沒有任何紀錄，無法統計。")
+
+st.divider()
 
 # ====== 明細紀錄（可修改 / 刪除） ======
 st.subheader("明細紀錄（可修改 / 刪除）")
@@ -294,13 +345,15 @@ else:
     edit_df = filtered_df.sort_values("日期", ascending=False).copy()
 
     # 保留原本 index，之後用來寫回 df
-    # 顯示時把日期變成字串
     edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
 
     if "刪除" not in edit_df.columns:
         edit_df["刪除"] = False
 
-    st.markdown("小提醒：直接在表格中改欄位值，或勾選『刪除』，再按下方儲存。")
+    st.markdown(
+        '<p class="hint-text">直接在下列表格中修改欄位內容，或勾選「刪除」，最後按下方按鈕儲存。</p>',
+        unsafe_allow_html=True,
+    )
 
     edited_df = st.data_editor(
         edit_df,
@@ -357,7 +410,8 @@ else:
         df = new_df
         save_data(df)
         st.success("已套用修改 / 刪除 ✅")
-        # 不再呼叫 st.experimental_rerun()
+
+st.divider()
 
 # ====== 長期統計（全部資料） ======
 st.subheader("長期統計（全部資料）")
@@ -397,6 +451,3 @@ if not df.empty:
     st.dataframe(by_month, use_container_width=True)
 else:
     st.info("尚無資料可以統計。")
-
-
-
