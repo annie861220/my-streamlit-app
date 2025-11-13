@@ -118,7 +118,8 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ====== 記帳用設定 ======
+# ===================== 記帳設定 =====================
+
 DATA_FILE = Path("transactions.csv")
 
 COLUMNS = [
@@ -158,8 +159,8 @@ CURRENCY_OPTIONS = ["TWD", "USD", "JPY", "EUR", "其他"]
 WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
-# ====== 記帳：資料讀寫 ======
 def load_data() -> pd.DataFrame:
+    """讀取記帳資料"""
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
         for col in COLUMNS:
@@ -173,13 +174,15 @@ def load_data() -> pd.DataFrame:
 
 
 def save_data(df: pd.DataFrame):
+    """儲存記帳資料"""
     df_to_save = df.copy()
     if not df_to_save.empty:
         df_to_save["日期"] = df_to_save["日期"].dt.strftime("%Y-%m-%d")
     df_to_save.to_csv(DATA_FILE, index=False, encoding="utf-8-sig")
 
 
-# ========= 分頁1：記帳 =========
+# ===================== 分頁 1：記帳 =====================
+
 def show_bookkeeping_page():
     df = load_data()
 
@@ -547,7 +550,8 @@ def show_bookkeeping_page():
         st.info("尚無資料可以統計。")
 
 
-# ========= 分頁2：固定資產折舊 =========
+# ===================== 分頁 2：固定資產折舊 =====================
+
 ASSET_FILE = Path("assets.csv")
 
 ASSET_COLUMNS = [
@@ -556,6 +560,7 @@ ASSET_COLUMNS = [
     "產品名稱",
     "品牌/型號",
     "購買日期",
+    "幣別",
     "金額",
     "持有天數",
     "每日均攤費用",
@@ -566,16 +571,17 @@ ASSET_COLUMNS = [
 
 
 def load_assets() -> pd.DataFrame:
+    """讀取固定資產資料，並自動重算持有天數與每日均攤費用"""
     if ASSET_FILE.exists():
         df = pd.read_csv(ASSET_FILE)
 
         # 補齊缺的欄位
         for col in ASSET_COLUMNS:
             if col not in df.columns:
-                df[col] = None
+                df[col] = "TWD" if col == "幣別" else None
 
-        # 金額 → 數字
-        df["金額"] = pd.to_numeric(df["金額"], errors="coerce").fillna(0)
+        # 金額 → 整數
+        df["金額"] = pd.to_numeric(df["金額"], errors="coerce").fillna(0).astype(int)
 
         # 購買日期 → datetime
         df["購買日期"] = pd.to_datetime(df["購買日期"], errors="coerce")
@@ -586,12 +592,12 @@ def load_assets() -> pd.DataFrame:
         df.loc[valid_mask, "持有天數"] = (today - df.loc[valid_mask, "購買日期"]).dt.days + 1
         df.loc[~valid_mask, "持有天數"] = 1
 
-        # 🔴 重點：把「持有天數」轉成數字，避免是文字型態
+        # 持有天數 → 整數，避免是文字
         df["持有天數"] = pd.to_numeric(df["持有天數"], errors="coerce")
         df.loc[df["持有天數"].isna() | (df["持有天數"] <= 0), "持有天數"] = 1
         df["持有天數"] = df["持有天數"].astype(int)
 
-        # 再來算每日均攤費用（這時一定是數字了）
+        # 每日均攤費用（保留小數）
         df["每日均攤費用"] = (df["金額"] / df["持有天數"]).round(2)
 
         # 顯示用：只留日期
@@ -604,8 +610,8 @@ def load_assets() -> pd.DataFrame:
         return df
 
 
-
 def save_assets(df: pd.DataFrame):
+    """儲存固定資產資料"""
     df_to_save = df.copy()
     if not df_to_save.empty:
         df_to_save["購買日期"] = pd.to_datetime(df_to_save["購買日期"]).dt.strftime("%Y-%m-%d")
@@ -622,16 +628,29 @@ def show_asset_page():
     with st.form("asset_form"):
         col1, col2 = st.columns(2)
 
+        # 左邊：分類、小類、名稱、型號、地點
         with col1:
-            category = st.text_input("分類", placeholder="例如：3C、家電、家具、衣物…")
-            subcategory = st.text_input("小類", placeholder="例如：手機、電腦、外套…")
-            name = st.text_input("產品名稱", placeholder="例如：iPhone 16、羽絨外套…")
+            asset_category = st.selectbox("分類", CATEGORY_OPTIONS)
+            asset_sub_options = SUBCATEGORY_MAP.get(asset_category, ["其他"])
+            asset_subcategory = st.selectbox("小類", asset_sub_options)
+
+            asset_name = st.text_input("產品名稱", placeholder="例如：iPhone 16、羽絨外套…")
             brand_model = st.text_input("品牌/型號", placeholder="例如：Apple / 256GB")
             location = st.text_input("地點", placeholder="例如：家裡房間、公司…")
 
+        # 右邊：日期、幣別、金額、狀態、備註
         with col2:
             purchase_date = st.date_input("購買日期", value=date.today())
-            amount = st.number_input("金額", min_value=0.0, step=100.0)
+
+            asset_currency = st.selectbox("幣別", CURRENCY_OPTIONS, index=0)
+
+            amount = st.number_input(
+                "金額（依幣別）",
+                min_value=0,
+                step=100,
+                format="%d",  # 整數
+            )
+
             status = st.selectbox("當前狀態", ["服役中", "已除役"])
             note = st.text_input("備註", placeholder="例如：團購價、二手購入、含配件…")
 
@@ -646,12 +665,13 @@ def show_asset_page():
         daily_cost = round(amount / holding_days, 2) if holding_days > 0 else 0
 
         new_row = {
-            "分類": category,
-            "小類": subcategory,
-            "產品名稱": name,
+            "分類": asset_category,
+            "小類": asset_subcategory,
+            "產品名稱": asset_name,
             "品牌/型號": brand_model,
             "購買日期": purchase_date,
-            "金額": amount,
+            "幣別": asset_currency,
+            "金額": int(amount),
             "持有天數": holding_days,
             "每日均攤費用": daily_cost,
             "當前狀態(服役中/已除役)": status,
@@ -670,11 +690,70 @@ def show_asset_page():
     else:
         st.dataframe(df_assets, use_container_width=True)
 
-        total_daily_cost = df_assets["每日均攤費用"].sum()
-        st.markdown(f"**目前所有資產合計每日均攤費用：約 {total_daily_cost:,.2f} 元**")
+        # 依幣別統計每日均攤費用
+        daily_sum_by_ccy = (
+            df_assets.groupby("幣別")["每日均攤費用"]
+            .sum()
+            .sort_index()
+        )
+
+        st.markdown("**各幣別每日均攤費用：**")
+        for ccy, v in daily_sum_by_ccy.items():
+            st.markdown(f"- {ccy}：{v:,.2f}")
+
+    # ===== 舊資料一次性匯入 =====
+    st.markdown("---")
+    with st.expander("📥 舊資料一次性匯入（選用，不常態顯示）"):
+        st.write("你可以在下表直接輸入 / 貼上舊資料，一次性匯入固定資產清單。")
+        st.write("欄位：分類 / 小類 / 產品名稱 / 品牌/型號 / 購買日期(YYYY-MM-DD) / 幣別 / 金額 / 當前狀態(服役中/已除役) / 地點 / 備註")
+
+        template_rows = 5
+        template_df = pd.DataFrame(columns=ASSET_COLUMNS).head(template_rows)
+
+        import_df = st.data_editor(
+            template_df,
+            num_rows="dynamic",
+            use_container_width=True,
+            key="asset_import_editor",
+        )
+
+        if st.button("🔄 匯入上方資料並加入現有資產"):
+            cleaned = import_df.copy()
+            cleaned = cleaned[cleaned["產品名稱"].astype(str).str.strip() != ""]
+
+            if cleaned.empty:
+                st.warning("沒有有效資料可匯入（至少填一列產品名稱）。")
+            else:
+                try:
+                    # 日期
+                    if "購買日期" in cleaned.columns:
+                        cleaned["購買日期"] = pd.to_datetime(
+                            cleaned["購買日期"], errors="coerce"
+                        ).dt.date
+
+                    # 幣別：空白填 TWD
+                    if "幣別" in cleaned.columns:
+                        cleaned["幣別"] = cleaned["幣別"].fillna("TWD").replace("", "TWD")
+
+                    # 金額：整數
+                    cleaned["金額"] = pd.to_numeric(
+                        cleaned["金額"], errors="coerce"
+                    ).fillna(0).astype(int)
+
+                    # 先讓持有天數 / 每日均攤費用留空，交給下次 load_assets 自動重算
+                    cleaned["持有天數"] = None
+                    cleaned["每日均攤費用"] = None
+
+                    df_assets = pd.concat([df_assets, cleaned], ignore_index=True)
+                    save_assets(df_assets)
+
+                    st.success(f"已匯入 {len(cleaned)} 筆舊資料，並加入現有資產。")
+                except Exception as e:
+                    st.error(f"匯入時發生錯誤：{e}")
 
 
-# ========= 主頁：選擇分頁 =========
+# ===================== 主程式：分頁切換 =====================
+
 def main():
     st.sidebar.title("功能選單")
     page = st.sidebar.radio("選擇頁面", ["記帳", "固定資產折舊"])
@@ -687,4 +766,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
