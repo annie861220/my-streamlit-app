@@ -31,12 +31,6 @@ st.markdown(
         margin-bottom: 1.2rem;
     }
 
-    /* 區塊標題前多一點間距 */
-    .main > div > h3 {
-        margin-top: 1.5rem;
-        margin-bottom: 0.5rem;
-    }
-
     /* KPI 卡片 */
     .kpi-card {
         padding: 0.9rem 1rem;
@@ -66,10 +60,11 @@ st.markdown(
 
     /* 篩選條件區塊 */
     .filter-box {
-        padding: 0.8rem 1rem 0.4rem 1rem;
+        padding: 0.8rem 1rem 0.6rem 1rem;
         border-radius: 0.8rem;
         background: #f8fafc;
         border: 1px solid #e2e8f0;
+        margin-bottom: 0.8rem;
     }
 
     /* 明細提示文字 */
@@ -82,6 +77,41 @@ st.markdown(
     /* Sidebar 標題微調 */
     section[data-testid="stSidebar"] h2 {
         margin-top: 0.5rem;
+    }
+
+    /* 月份卡片用的小字體 & 顏色 */
+    .month-card-title {
+        font-size: 0.9rem;
+        color: #555555;
+        margin-bottom: 0.2rem;
+    }
+    .month-card-month {
+        font-size: 1.2rem;
+        font-weight: 700;
+        margin-bottom: 0.3rem;
+    }
+    .month-line-label {
+        font-size: 0.8rem;
+        color: #777777;
+        margin-bottom: 0.05rem;
+    }
+    .month-line-income {
+        font-size: 1.0rem;
+        font-weight: 600;
+        color: #2e7d32;
+        margin-bottom: 0.1rem;
+    }
+    .month-line-expense {
+        font-size: 1.0rem;
+        font-weight: 600;
+        color: #c62828;
+        margin-bottom: 0.1rem;
+    }
+    .month-line-net {
+        font-size: 1.0rem;
+        font-weight: 600;
+        color: #1565c0;
+        margin-bottom: 0.1rem;
     }
     </style>
     """,
@@ -153,16 +183,43 @@ def save_data(df: pd.DataFrame):
 
 df = load_data()
 
+# ====== 預先算「本月」與「長期」統計 ======
+today = date.today()
+if not df.empty:
+    this_month_mask = (
+        (df["日期"].dt.year == today.year) &
+        (df["日期"].dt.month == today.month)
+    )
+    this_month_df = df[this_month_mask].copy()
+else:
+    this_month_df = df.copy()
+
+# 本月統計
+if not this_month_df.empty:
+    month_income = this_month_df["收入"].sum()
+    month_expense = this_month_df["實際支出"].sum()
+    month_net = month_income - month_expense
+else:
+    month_income = month_expense = month_net = 0.0
+
+# 長期統計（全部）
+if not df.empty:
+    all_income = df["收入"].sum()
+    all_expense = df["實際支出"].sum()
+    all_net = all_income - all_expense
+else:
+    all_income = all_expense = all_net = 0.0
+
 # ====== 標題 & 說明 ======
 st.title("📒 嘎昏 a 記帳小程式")
 
 st.markdown(
     """
     <div class="intro-box">
-    <b>使用說明：</b><br>
-    ‧ 每月 5 號發薪水，記得先把自己存起來<br>
-    ‧ 平常乖乖記帳，就知道錢跑去哪裡<br>
-    ‧ 最重要的是：不要死掉，要快樂花錢 🥹
+    <b>保持可愛。</b><br><br>
+    ‧ 每月 5 號發薪水<br>
+    ‧ 乖乖記帳，知道錢跑去哪<br>
+    ‧ 不要死掉，要快樂花錢
     </div>
     """,
     unsafe_allow_html=True,
@@ -243,8 +300,10 @@ if submitted:
 # ====== 篩選條件 ======
 st.subheader("篩選條件")
 
+# 這裡用一個 container 包住，CSS 的框只包這一塊
 with st.container():
     st.markdown('<div class="filter-box">', unsafe_allow_html=True)
+
     col1, col2, col3, col4 = st.columns(4)
 
     if not df.empty:
@@ -273,7 +332,7 @@ with st.container():
             default=[],
         )
 
-    st.markdown('</div>', unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
 if not df.empty:
     mask = (
@@ -291,48 +350,40 @@ else:
 
 st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
-# ====== 統計總覽（依目前篩選） ======
-st.subheader("統計總覽（依目前篩選）")
+# ====== 本月統計總覽（固定看本月，不跟篩選跑） ======
+st.subheader("本月統計總覽")
 
-if not filtered_df.empty:
-    stats_df = filtered_df.copy()
-    total_income = stats_df["收入"].sum()
-    total_expense = stats_df["實際支出"].sum()
-    net = total_income - total_expense
-
-    k1, k2, k3 = st.columns(3)
-    with k1:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-income">
-                <div class="kpi-label">收入小計</div>
-                <div class="kpi-value">{total_income:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with k2:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-expense">
-                <div class="kpi-label">支出小計（實際）</div>
-                <div class="kpi-value">{total_expense:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with k3:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-net">
-                <div class="kpi-label">結餘（收入 - 支出）</div>
-                <div class="kpi-value">{net:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-else:
-    st.info("目前篩選沒有任何紀錄，無法統計。")
+k1, k2, k3 = st.columns(3)
+with k1:
+    st.markdown(
+        f"""
+        <div class="kpi-card kpi-income">
+            <div class="kpi-label">本月收入</div>
+            <div class="kpi-value">{month_income:,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with k2:
+    st.markdown(
+        f"""
+        <div class="kpi-card kpi-expense">
+            <div class="kpi-label">本月支出（實際）</div>
+            <div class="kpi-value">{month_expense:,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+with k3:
+    st.markdown(
+        f"""
+        <div class="kpi-card kpi-net">
+            <div class="kpi-label">本月結餘（收入 - 支出）</div>
+            <div class="kpi-value">{month_net:,.0f}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
 
 st.divider()
 
@@ -344,7 +395,11 @@ if filtered_df.empty:
 else:
     edit_df = filtered_df.sort_values("日期", ascending=False).copy()
 
-    # 保留原本 index，之後用來寫回 df
+    # 不要顯示 ID（如果 csv 裡還殘留，就丟掉）
+    if "ID" in edit_df.columns:
+        edit_df = edit_df.drop(columns=["ID"])
+
+    # 顯示時把日期變成字串
     edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
 
     if "刪除" not in edit_df.columns:
@@ -360,13 +415,29 @@ else:
         num_rows="fixed",
         use_container_width=True,
         key="editor",
+        hide_index=True,  # 不顯示 index
+        column_config={
+            "日期": st.column_config.TextColumn("日期", width="small"),
+            "星期": st.column_config.TextColumn("星期", width="small"),
+            "類別": st.column_config.TextColumn("類別", width="small"),
+            "小類": st.column_config.TextColumn("小類", width="small"),
+            "項目": st.column_config.TextColumn("項目", width="medium"),
+            "支付方式": st.column_config.TextColumn("支付方式", width="small"),
+            "幣別": st.column_config.TextColumn("幣別", width="small"),
+            "收入": st.column_config.NumberColumn("收入", width="small"),
+            "支出": st.column_config.NumberColumn("支出", width="small"),
+            "支出比例": st.column_config.NumberColumn("支出比例", width="small"),
+            "實際支出": st.column_config.NumberColumn("實際支出", width="small"),
+            "備註": st.column_config.TextColumn("備註", width="large"),
+            "刪除": st.column_config.CheckboxColumn("刪除", width="small"),
+        },
     )
 
     if st.button("💾 儲存修改 / 刪除"):
         new_df = df.copy()
 
+        # 注意：edited_df 的 index 會繼承 edit_df 的 index（也就是原本 df 的 index）
         for idx, row in edited_df.iterrows():
-            # idx 是原本 df 的 index（因為我們沒有 reset_index）
             # 刪除優先處理
             if "刪除" in row and row["刪除"]:
                 if idx in new_df.index:
@@ -417,29 +488,40 @@ st.divider()
 st.subheader("長期統計（全部資料）")
 
 if not df.empty:
-    all_stats = df.copy()
-    all_income = all_stats["收入"].sum()
-    all_expense = all_stats["實際支出"].sum()
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-income">
+                <div class="kpi-label">全部紀錄收入</div>
+                <div class="kpi-value">{all_income:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c2:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-expense">
+                <div class="kpi-label">全部紀錄支出</div>
+                <div class="kpi-value">{all_expense:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+    with c3:
+        st.markdown(
+            f"""
+            <div class="kpi-card kpi-net">
+                <div class="kpi-label">全部紀錄結餘</div>
+                <div class="kpi-value">{all_net:,.0f}</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-    today = date.today()
-    this_month_mask = (
-        (all_stats["日期"].dt.year == today.year) &
-        (all_stats["日期"].dt.month == today.month)
-    )
-    this_month_df = all_stats[this_month_mask]
+    st.markdown("### 依月份統計（卡片式）")
 
-    this_month_income = this_month_df["收入"].sum()
-    this_month_expense = this_month_df["實際支出"].sum()
-    this_month_net = this_month_income - this_month_expense
-
-    c1, c2, c3, c4, c5 = st.columns(5)
-    c1.metric("全部紀錄收入", f"{all_income:,.0f}")
-    c2.metric("全部紀錄支出", f"{all_expense:,.0f}")
-    c3.metric("當月收入", f"{this_month_income:,.0f}")
-    c4.metric("當月支出", f"{this_month_expense:,.0f}")
-    c5.metric("當月結餘", f"{this_month_net:,.0f}")
-
-    st.markdown("### 依月份統計（全部資料）")
     month_stats = df.copy()
     month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
     by_month = (
@@ -448,6 +530,35 @@ if not df.empty:
         .rename(columns={"實際支出": "支出"})
         .sort_values("月份", ascending=True)
     )
-    st.dataframe(by_month, use_container_width=True)
+
+    # 每個月份一張卡片，三欄排版
+    cols = [None, None, None]
+    for i, (m, row) in enumerate(by_month.iterrows()):
+        if i % 3 == 0:
+            cols = st.columns(3)
+
+        income_m = row["收入"]
+        expense_m = row["支出"]
+        net_m = income_m - expense_m
+
+        with cols[i % 3]:
+            st.markdown(
+                f"""
+                <div class="kpi-card">
+                    <div class="month-card-title">月份</div>
+                    <div class="month-card-month">{m}</div>
+
+                    <div class="month-line-label">收入</div>
+                    <div class="month-line-income">{income_m:,.0f}</div>
+
+                    <div class="month-line-label">支出</div>
+                    <div class="month-line-expense">{expense_m:,.0f}</div>
+
+                    <div class="month-line-label">結餘</div>
+                    <div class="month-line-net">{net_m:,.0f}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
 else:
     st.info("尚無資料可以統計。")
