@@ -4,6 +4,18 @@ from pathlib import Path
 from datetime import datetime, date
 import matplotlib.pyplot as plt  # 圓餅圖用
 
+# 嘗試使用常見的中文字型，沒有的話會自動 fallback
+plt.rcParams["font.sans-serif"] = [
+    "Taipei Sans TC Beta",
+    "Microsoft JhengHei",
+    "Microsoft YaHei",
+    "SimHei",
+    "Noto Sans CJK TC",
+    "sans-serif",
+]
+plt.rcParams["axes.unicode_minus"] = False
+
+
 st.set_page_config(page_title="家芬a整合平台", layout="wide")
 
 # ====== 檔案設定 ======
@@ -216,45 +228,61 @@ if not filtered_df.empty:
     c2.metric("支出小計（實際）", f"{total_expense:,.0f}")
     c3.metric("結餘（收入 - 支出）", f"{net:,.0f}")
 
-# ====== 收入 / 支出圓餅圖（美化＋中文） ======
-if (total_income + total_expense) > 0:
-    fig, ax = plt.subplots(figsize=(4, 4))  # 圖片縮小
+# ====== 支出按類別圓餅圖（中文＋外框＋內部標籤） ======
+st.subheader("支出類別分布（依目前篩選）")
 
-    # 設定中文字體（Streamlit / Linux 最常有的字體之一）
-    plt.rcParams['font.sans-serif'] = ['DejaVu Sans'] 
-    plt.rcParams['axes.unicode_minus'] = False
-
-    values = [total_income, total_expense]
-    labels = ["收入", "支出"]
-    colors = ["#6CC4A1", "#FF6B6B"]  # 柔和綠 / 柔和紅
-
-    # 過濾為 0 的項目
-    values_nonzero = []
-    labels_nonzero = []
-    colors_nonzero = []
-
-    for v, l, c in zip(values, labels, colors):
-        if v > 0:
-            values_nonzero.append(v)
-            labels_nonzero.append(l)
-            colors_nonzero.append(c)
-
-    ax.pie(
-        values_nonzero,
-        labels=labels_nonzero,
-        autopct="%1.1f%%",
-        startangle=140,
-        colors=colors_nonzero,
-        textprops={"fontsize": 12}
+if not filtered_df.empty:
+    # 只看實際支出，依類別加總
+    exp_by_cat = (
+        filtered_df.groupby("類別")["實際支出"]
+        .sum()
+        .sort_values(ascending=False)
     )
 
-    ax.set_title("收入 / 支出 比例", fontsize=14)
-    ax.axis("equal")
+    # 去掉支出為 0 的類別
+    exp_by_cat = exp_by_cat[exp_by_cat > 0]
 
-    st.pyplot(fig)
+    if len(exp_by_cat) > 0:
+        # 做一個比較小的圖
+        col_left, col_right = st.columns([1, 1])
+        with col_left:
+            st.write("")
+
+        with col_right:
+            fig, ax = plt.subplots(figsize=(3, 3), dpi=120)
+
+            values = exp_by_cat.values
+            labels = exp_by_cat.index  # 類別名稱（中文）
+
+            # 畫圓餅圖，標籤放在圓內
+            wedges, texts, autotexts = ax.pie(
+                values,
+                labels=labels,
+                autopct="%1.1f%%",
+                startangle=140,
+                pctdistance=0.7,    # 百分比文字靠內
+                labeldistance=1.1,  # 類別文字位置（可再調）
+            )
+
+            # 加外框
+            for w in wedges:
+                w.set_edgecolor("black")
+                w.set_linewidth(0.8)
+
+            # 字體大小微調
+            for t in texts:
+                t.set_fontsize(10)      # 類別文字
+            for t in autotexts:
+                t.set_fontsize(9)       # 百分比文字
+
+            ax.set_title("支出類別比例", fontsize=12)
+            ax.axis("equal")  # 圓形
+
+            st.pyplot(fig)
+    else:
+        st.info("目前篩選中沒有支出資料，無法繪製支出圓餅圖。")
 else:
-    st.info("目前收入與支出皆為 0，因此無法繪製圓餅圖。")
-
+    st.info("目前篩選沒有任何紀錄，無法繪製支出圓餅圖。")
 
 # ====== 明細紀錄（可修改 / 刪除） ======
 st.subheader("明細紀錄（可修改 / 刪除）")
@@ -368,4 +396,5 @@ if not df.empty:
     st.dataframe(by_month, use_container_width=True)
 else:
     st.info("尚無資料可以統計。")
+
 
