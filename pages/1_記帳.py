@@ -176,7 +176,43 @@ def save_data(df: pd.DataFrame):
 
 df = load_data()
 
-# ====== 預先算「本月」與「長期」統計 ======
+# ====== 側邊欄：匯入舊 Excel（一次性使用） ======
+st.sidebar.markdown("---")
+st.sidebar.subheader("📥 匯入舊 Excel（一次性）")
+
+upload_file = st.sidebar.file_uploader("選擇舊的記帳 Excel 檔", type=["xlsx", "xls"])
+
+if upload_file is not None:
+    try:
+        old_df = pd.read_excel(upload_file)
+
+        # 舊檔可能有「月份」欄，先丟掉
+        if "月份" in old_df.columns:
+            old_df = old_df.drop(columns=["月份"])
+
+        # 確保所有需要的欄位都有
+        for col in COLUMNS:
+            if col not in old_df.columns:
+                if col == "幣別":
+                    old_df[col] = "TWD"
+                elif col in ["收入", "支出", "支出比例", "實際支出"]:
+                    old_df[col] = 0
+                else:
+                    old_df[col] = ""
+
+        old_df = old_df[COLUMNS]
+        old_df["日期"] = pd.to_datetime(old_df["日期"])
+
+        st.sidebar.success(f"預覽舊資料共 {len(old_df)} 筆，可匯入。")
+
+        if st.sidebar.button("↪ 把舊資料匯入現在檔案"):
+            df = pd.concat([df, old_df], ignore_index=True)
+            save_data(df)
+            st.sidebar.success("舊資料已匯入 ✅，重新整理頁面即可看到。")
+    except Exception as e:
+        st.sidebar.error(f"匯入失敗：{e}")
+
+# ====== 預先算「本月」與「長期」統計（用匯入後的 df） ======
 today = date.today()
 if not df.empty:
     this_month_mask = (
@@ -187,7 +223,6 @@ if not df.empty:
 else:
     this_month_df = df.copy()
 
-# 本月統計（固定，不看篩選）
 if not this_month_df.empty:
     month_income = this_month_df["收入"].sum()
     month_expense = this_month_df["實際支出"].sum()
@@ -195,7 +230,6 @@ if not this_month_df.empty:
 else:
     month_income = month_expense = month_net = 0.0
 
-# 長期統計（全部資料）
 if not df.empty:
     all_income = df["收入"].sum()
     all_expense = df["實際支出"].sum()
@@ -337,212 +371,7 @@ else:
 
 st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
-# ====== 本月統計總覽（固定本月，不跟篩選跑） ======
+# ====== 本月統計總覽（固定本月） ======
 st.subheader("本月統計總覽")
 
-k1, k2, k3 = st.columns(3)
-with k1:
-    st.markdown(
-        f"""
-        <div class="kpi-card kpi-income">
-            <div class="kpi-label">本月收入</div>
-            <div class="kpi-value">{month_income:,.0f}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with k2:
-    st.markdown(
-        f"""
-        <div class="kpi-card kpi-expense">
-            <div class="kpi-label">本月支出（實際）</div>
-            <div class="kpi-value">{month_expense:,.0f}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-with k3:
-    st.markdown(
-        f"""
-        <div class="kpi-card kpi-net">
-            <div class="kpi-label">本月結餘（收入 - 支出）</div>
-            <div class="kpi-value">{month_net:,.0f}</div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-st.divider()
-
-# ====== 明細紀錄 ======
-st.subheader("明細紀錄")
-
-if filtered_df.empty:
-    st.info("目前沒有符合條件的紀錄。")
-else:
-    edit_df = filtered_df.sort_values("日期", ascending=False).copy()
-
-    # 不要顯示 ID（如果 csv 裡還有舊欄位）
-    if "ID" in edit_df.columns:
-        edit_df = edit_df.drop(columns=["ID"])
-
-    # 顯示用字串日期
-    edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
-
-    if "刪除" not in edit_df.columns:
-        edit_df["刪除"] = False
-
-    st.markdown(
-        '<p class="hint-text">直接在下列表格中修改欄位內容，或勾選「刪除」，最後按下方按鈕儲存。</p>',
-        unsafe_allow_html=True,
-    )
-
-    column_order = [
-        "日期", "星期", "類別", "小類", "項目",
-        "支付方式", "幣別",
-        "收入", "支出", "支出比例", "實際支出",
-        "備註", "刪除",
-    ]
-    column_order = [c for c in column_order if c in edit_df.columns]
-
-    edited_df = st.data_editor(
-        edit_df,
-        num_rows="fixed",
-        use_container_width=True,
-        hide_index=True,
-        column_order=column_order,
-        key="editor",
-    )
-
-    if st.button("💾 儲存修改 / 刪除"):
-        new_df = df.copy()
-
-        # edited_df 的 index = 原本 df 的 index
-        for idx, row in edited_df.iterrows():
-            # 刪除優先
-            if "刪除" in row and row["刪除"]:
-                if idx in new_df.index:
-                    new_df = new_df.drop(index=idx)
-                continue
-
-            # 修改資料
-            try:
-                new_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d")
-            except ValueError:
-                st.error(f"第 {idx} 列日期格式錯誤，請用 YYYY-MM-DD")
-                continue
-
-            try:
-                new_income = float(row["收入"]) if str(row["收入"]).strip() != "" else 0.0
-                new_expense = float(row["支出"]) if str(row["支出"]).strip() != "" else 0.0
-                new_ratio = int(row["支出比例"]) if str(row["支出比例"]).strip() != "" else 0
-            except ValueError:
-                st.error(f"第 {idx} 列的金額或比例欄位有非數字，請修正。")
-                continue
-
-            if new_expense > 0:
-                new_actual = new_expense * (new_ratio / 100.0)
-            else:
-                new_actual = 0.0
-
-            if idx in new_df.index:
-                new_df.loc[idx, "日期"] = new_date
-                new_df.loc[idx, "星期"] = row["星期"]
-                new_df.loc[idx, "類別"] = row["類別"]
-                new_df.loc[idx, "小類"] = row["小類"]
-                new_df.loc[idx, "項目"] = row["項目"]
-                new_df.loc[idx, "支付方式"] = row["支付方式"]
-                new_df.loc[idx, "幣別"] = row["幣別"]
-                new_df.loc[idx, "收入"] = new_income
-                new_df.loc[idx, "支出"] = new_expense
-                new_df.loc[idx, "支出比例"] = new_ratio
-                new_df.loc[idx, "實際支出"] = new_actual
-                new_df.loc[idx, "備註"] = row["備註"]
-
-        df = new_df
-        save_data(df)
-        st.success("已套用修改 / 刪除 ✅")
-
-st.divider()
-
-# ====== 長期統計（全部資料） ======
-st.subheader("長期統計（全部資料）")
-
-if not df.empty:
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-income">
-                <div class="kpi-label">全部紀錄收入</div>
-                <div class="kpi-value">{all_income:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with c2:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-expense">
-                <div class="kpi-label">全部紀錄支出</div>
-                <div class="kpi-value">{all_expense:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-    with c3:
-        st.markdown(
-            f"""
-            <div class="kpi-card kpi-net">
-                <div class="kpi-label">全部紀錄結餘</div>
-                <div class="kpi-value">{all_net:,.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    # ====== 依月份統計（卡片式） ======
-    st.subheader("依月份統計（卡片式）")
-
-    month_stats = df.copy()
-    month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
-    by_month = (
-        month_stats.groupby("月份")[["收入", "實際支出"]]
-        .sum()
-        .rename(columns={"實際支出": "支出"})
-        .sort_values("月份", ascending=True)
-    )
-
-    if by_month.empty:
-        st.info("尚無資料可以進行月份統計。")
-    else:
-        for ym, row in by_month.iterrows():
-            income = row["收入"]
-            expense = row["支出"]
-            net = income - expense
-
-            st.markdown(
-                f"""
-                <div class="month-card">
-                    <div class="month-title">{ym}</div>
-
-                    <div class="month-line">
-                        <div class="month-line-label">收入</div>
-                        <div class="month-line-income">{income:,.0f}</div>
-                    </div>
-
-                    <div class="month-line">
-                        <div class="month-line-label">支出</div>
-                        <div class="month-line-expense">{expense:,.0f}</div>
-                    </div>
-
-                    <div class="month-line">
-                        <div class="month-line-label">結餘</div>
-                        <div class="month-line-net">{net:,.0f}</div>
-                    </div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-else:
-    st.info("尚無資料可以統計。")
+k1,
