@@ -216,30 +216,45 @@ if not filtered_df.empty:
     c2.metric("支出小計（實際）", f"{total_expense:,.0f}")
     c3.metric("結餘（收入 - 支出）", f"{net:,.0f}")
 
-    # 收入 / 支出圓餅圖
-    if (total_income + total_expense) > 0:
-        fig, ax = plt.subplots()
-        values = [total_income, total_expense]
-        labels = ["收入", "支出"]
+# ====== 收入 / 支出圓餅圖（美化＋中文） ======
+if (total_income + total_expense) > 0:
+    fig, ax = plt.subplots(figsize=(4, 4))  # 圖片縮小
 
-        values_nonzero = []
-        labels_nonzero = []
-        for v, l in zip(values, labels):
-            if v > 0:
-                values_nonzero.append(v)
-                labels_nonzero.append(l)
+    # 設定中文字體（Streamlit / Linux 最常有的字體之一）
+    plt.rcParams['font.sans-serif'] = ['DejaVu Sans'] 
+    plt.rcParams['axes.unicode_minus'] = False
 
-        if values_nonzero:
-            ax.pie(values_nonzero, labels=labels_nonzero, autopct="%1.1f%%")
-            ax.set_title("收入 / 支出 比例")
-            ax.axis("equal")
-            st.pyplot(fig)
-        else:
-            st.info("目前收入與支出皆為 0，無法繪製圓餅圖。")
+    values = [total_income, total_expense]
+    labels = ["收入", "支出"]
+    colors = ["#6CC4A1", "#FF6B6B"]  # 柔和綠 / 柔和紅
+
+    # 過濾為 0 的項目
+    values_nonzero = []
+    labels_nonzero = []
+    colors_nonzero = []
+
+    for v, l, c in zip(values, labels, colors):
+        if v > 0:
+            values_nonzero.append(v)
+            labels_nonzero.append(l)
+            colors_nonzero.append(c)
+
+    ax.pie(
+        values_nonzero,
+        labels=labels_nonzero,
+        autopct="%1.1f%%",
+        startangle=140,
+        colors=colors_nonzero,
+        textprops={"fontsize": 12}
+    )
+
+    ax.set_title("收入 / 支出 比例", fontsize=14)
+    ax.axis("equal")
+
+    st.pyplot(fig)
 else:
-    st.info("目前篩選沒有任何紀錄，無法統計。")
+    st.info("目前收入與支出皆為 0，因此無法繪製圓餅圖。")
 
-st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
 # ====== 明細紀錄（可修改 / 刪除） ======
 st.subheader("明細紀錄（可修改 / 刪除）")
@@ -353,3 +368,4 @@ if not df.empty:
     st.dataframe(by_month, use_container_width=True)
 else:
     st.info("尚無資料可以統計。")
+
