@@ -194,7 +194,7 @@ if not df.empty:
 else:
     this_month_df = df.copy()
 
-# 本月統計
+# 本月統計（固定，不看篩選）
 if not this_month_df.empty:
     month_income = this_month_df["收入"].sum()
     month_expense = this_month_df["實際支出"].sum()
@@ -300,7 +300,6 @@ if submitted:
 # ====== 篩選條件 ======
 st.subheader("篩選條件")
 
-# 這裡用一個 container 包住，CSS 的框只包這一塊
 with st.container():
     st.markdown('<div class="filter-box">', unsafe_allow_html=True)
 
@@ -350,7 +349,7 @@ else:
 
 st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
-# ====== 本月統計總覽（固定看本月，不跟篩選跑） ======
+# ====== 本月統計總覽（固定本月，不跟篩選跑） ======
 st.subheader("本月統計總覽")
 
 k1, k2, k3 = st.columns(3)
@@ -410,33 +409,29 @@ else:
         unsafe_allow_html=True,
     )
 
+    # 欄位順序控制，讓常用欄位在前面，減少左右捲動感
+    column_order = [
+        "日期", "星期", "類別", "小類", "項目",
+        "支付方式", "幣別",
+        "收入", "支出", "支出比例", "實際支出",
+        "備註", "刪除",
+    ]
+    # 避免有缺欄位就報錯，先過濾一次
+    column_order = [c for c in column_order if c in edit_df.columns]
+
     edited_df = st.data_editor(
         edit_df,
         num_rows="fixed",
         use_container_width=True,
+        hide_index=True,
+        column_order=column_order,
         key="editor",
-        hide_index=True,  # 不顯示 index
-        column_config={
-            "日期": st.column_config.TextColumn("日期", width="small"),
-            "星期": st.column_config.TextColumn("星期", width="small"),
-            "類別": st.column_config.TextColumn("類別", width="small"),
-            "小類": st.column_config.TextColumn("小類", width="small"),
-            "項目": st.column_config.TextColumn("項目", width="medium"),
-            "支付方式": st.column_config.TextColumn("支付方式", width="small"),
-            "幣別": st.column_config.TextColumn("幣別", width="small"),
-            "收入": st.column_config.NumberColumn("收入", width="small"),
-            "支出": st.column_config.NumberColumn("支出", width="small"),
-            "支出比例": st.column_config.NumberColumn("支出比例", width="small"),
-            "實際支出": st.column_config.NumberColumn("實際支出", width="small"),
-            "備註": st.column_config.TextColumn("備註", width="large"),
-            "刪除": st.column_config.CheckboxColumn("刪除", width="small"),
-        },
     )
 
     if st.button("💾 儲存修改 / 刪除"):
         new_df = df.copy()
 
-        # 注意：edited_df 的 index 會繼承 edit_df 的 index（也就是原本 df 的 index）
+        # edited_df 的 index = 原 df 的 index
         for idx, row in edited_df.iterrows():
             # 刪除優先處理
             if "刪除" in row and row["刪除"]:
