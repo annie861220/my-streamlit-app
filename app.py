@@ -5,7 +5,7 @@ from datetime import datetime, date
 
 st.set_page_config(page_title="家芬a整合平台", layout="wide")
 
-# ====== 簡單美化：全域樣式 ======
+# ====== 全域樣式（CSS） ======
 st.markdown(
     """
     <style>
@@ -58,14 +58,14 @@ st.markdown(
         color: #1565c0;
     }
 
-/* 篩選條件區塊（放大、加寬、加高） */
-.filter-box {
-    padding: 1.8rem 2rem 1.4rem 2rem;   /* 四邊 padding 加大 */
-    border-radius: 1rem;
-    background: #f1f5f9;               /* 稍微更亮，層次感更好 */
-    border: 1px solid #d0d7e1;
-    margin-bottom: 1.2rem;
-}
+    /* 篩選條件區塊（放大、加寬、加高） */
+    .filter-box {
+        padding: 1.8rem 2rem 1.4rem 2rem;
+        border-radius: 1rem;
+        background: #f1f5f9;
+        border: 1px solid #d0d7e1;
+        margin-bottom: 1.2rem;
+    }
 
     /* 明細提示文字 */
     .hint-text {
@@ -79,39 +79,43 @@ st.markdown(
         margin-top: 0.5rem;
     }
 
-    /* 月份卡片用的小字體 & 顏色 */
-    .month-card-title {
-        font-size: 0.9rem;
-        color: #555555;
-        margin-bottom: 0.2rem;
+    /* 月份卡片統一風格 */
+    .month-card {
+        padding: 1rem 1.2rem;
+        margin-bottom: 1rem;
+        border-radius: 0.8rem;
+        background: #ffffff;
+        border: 1px solid #e5e5e5;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.04);
     }
-    .month-card-month {
-        font-size: 1.2rem;
+    .month-title {
+        font-size: 1.1rem;
         font-weight: 700;
-        margin-bottom: 0.3rem;
+        margin-bottom: 0.6rem;
+    }
+    .month-line {
+        display: flex;
+        justify-content: space-between;
+        padding: 0.25rem 0;
     }
     .month-line-label {
-        font-size: 0.8rem;
-        color: #777777;
-        margin-bottom: 0.05rem;
+        font-size: 0.85rem;
+        color: #666666;
     }
     .month-line-income {
-        font-size: 1.0rem;
-        font-weight: 600;
+        font-size: 1rem;
+        font-weight: 700;
         color: #2e7d32;
-        margin-bottom: 0.1rem;
     }
     .month-line-expense {
-        font-size: 1.0rem;
-        font-weight: 600;
+        font-size: 1rem;
+        font-weight: 700;
         color: #c62828;
-        margin-bottom: 0.1rem;
     }
     .month-line-net {
-        font-size: 1.0rem;
-        font-weight: 600;
+        font-size: 1rem;
+        font-weight: 700;
         color: #1565c0;
-        margin-bottom: 0.1rem;
     }
     </style>
     """,
@@ -127,7 +131,7 @@ COLUMNS = [
     "支付方式", "幣別",
     "收入", "支出",
     "支出比例", "實際支出",
-    "備註"
+    "備註",
 ]
 
 CATEGORY_OPTIONS = [
@@ -154,9 +158,7 @@ SUBCATEGORY_MAP = {
 }
 
 PAYMENT_OPTIONS = ["現金", "魔法小卡", "大哥"]
-
 CURRENCY_OPTIONS = ["TWD", "USD", "JPY", "EUR", "其他"]
-
 WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"]
 
 
@@ -202,7 +204,7 @@ if not this_month_df.empty:
 else:
     month_income = month_expense = month_net = 0.0
 
-# 長期統計（全部）
+# 長期統計（全部資料）
 if not df.empty:
     all_income = df["收入"].sum()
     all_expense = df["實際支出"].sum()
@@ -249,7 +251,7 @@ pay_ratio = st.sidebar.number_input(
     step=5,
 )
 
-amount_str = st.sidebar.text_input("金額（{}）".format(currency))
+amount_str = st.sidebar.text_input(f"金額（{currency}）")
 note = st.sidebar.text_area("備註（選填）", height=60)
 
 submitted = st.sidebar.button("💾 Add")
@@ -295,7 +297,6 @@ if submitted:
         df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
         save_data(df)
         st.sidebar.success("已新增一筆紀錄 ✅")
-
 
 # ====== 篩選條件 ======
 st.subheader("篩選條件")
@@ -386,7 +387,7 @@ with k3:
 
 st.divider()
 
-# ====== 明細紀錄（可修改 / 刪除） ======
+# ====== 明細紀錄 ======
 st.subheader("明細紀錄")
 
 if filtered_df.empty:
@@ -394,11 +395,11 @@ if filtered_df.empty:
 else:
     edit_df = filtered_df.sort_values("日期", ascending=False).copy()
 
-    # 不要顯示 ID（如果 csv 裡還殘留，就丟掉）
+    # 不要顯示 ID（如果 csv 裡還有舊欄位）
     if "ID" in edit_df.columns:
         edit_df = edit_df.drop(columns=["ID"])
 
-    # 顯示時把日期變成字串
+    # 顯示用字串日期
     edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
 
     if "刪除" not in edit_df.columns:
@@ -409,14 +410,12 @@ else:
         unsafe_allow_html=True,
     )
 
-    # 欄位順序控制，讓常用欄位在前面，減少左右捲動感
     column_order = [
         "日期", "星期", "類別", "小類", "項目",
         "支付方式", "幣別",
         "收入", "支出", "支出比例", "實際支出",
         "備註", "刪除",
     ]
-    # 避免有缺欄位就報錯，先過濾一次
     column_order = [c for c in column_order if c in edit_df.columns]
 
     edited_df = st.data_editor(
@@ -431,9 +430,9 @@ else:
     if st.button("💾 儲存修改 / 刪除"):
         new_df = df.copy()
 
-        # edited_df 的 index = 原 df 的 index
+        # edited_df 的 index = 原本 df 的 index
         for idx, row in edited_df.iterrows():
-            # 刪除優先處理
+            # 刪除優先
             if "刪除" in row and row["刪除"]:
                 if idx in new_df.index:
                     new_df = new_df.drop(index=idx)
@@ -516,12 +515,10 @@ if not df.empty:
         )
 
     # ====== 依月份統計（卡片式） ======
-st.subheader("依月份統計（卡片式）")
+    st.subheader("依月份統計（卡片式）")
 
-if not df.empty:
     month_stats = df.copy()
     month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
-
     by_month = (
         month_stats.groupby("月份")[["收入", "實際支出"]]
         .sum()
@@ -529,78 +526,36 @@ if not df.empty:
         .sort_values("月份", ascending=True)
     )
 
-    # 每個月份一個卡片
-    for ym, row in by_month.iterrows():
-        income = row["收入"]
-        expense = row["支出"]
-        net = income - expense
+    if by_month.empty:
+        st.info("尚無資料可以進行月份統計。")
+    else:
+        for ym, row in by_month.iterrows():
+            income = row["收入"]
+            expense = row["支出"]
+            net = income - expense
 
-        st.markdown(
-            f"""
-            <div class="month-card">
-                <div class="month-title">{ym}</div>
+            st.markdown(
+                f"""
+                <div class="month-card">
+                    <div class="month-title">{ym}</div>
 
-                <div class="month-line">
-                    <div class="month-line-label">收入</div>
-                    <div class="month-line-income">{income:,.0f}</div>
+                    <div class="month-line">
+                        <div class="month-line-label">收入</div>
+                        <div class="month-line-income">{income:,.0f}</div>
+                    </div>
+
+                    <div class="month-line">
+                        <div class="month-line-label">支出</div>
+                        <div class="month-line-expense">{expense:,.0f}</div>
+                    </div>
+
+                    <div class="month-line">
+                        <div class="month-line-label">結餘</div>
+                        <div class="month-line-net">{net:,.0f}</div>
+                    </div>
                 </div>
-
-                <div class="month-line">
-                    <div class="month-line-label">支出</div>
-                    <div class="month-line-expense">{expense:,.0f}</div>
-                </div>
-
-                <div class="month-line">
-                    <div class="month-line-label">結餘</div>
-                    <div class="month-line-net">{net:,.0f}</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+                """,
+                unsafe_allow_html=True,
+            )
 else:
-    st.info("尚無資料可以進行月份統計。")
-/* 月份卡片 */
-.month-card {
-    padding: 1rem 1.2rem;
-    margin-bottom: 1rem;
-    border-radius: 0.8rem;
-    background: #ffffff;
-    border: 1px solid #e5e5e5;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-}
-
-.month-title {
-    font-size: 1.1rem;
-    font-weight: 700;
-    margin-bottom: 0.6rem;
-}
-
-.month-line {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.25rem 0;
-}
-
-.month-line-label {
-    font-size: 0.85rem;
-    color: #666666;
-}
-
-.month-line-income {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #2e7d32;
-}
-
-.month-line-expense {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #c62828;
-}
-
-.month-line-net {
-    font-size: 1rem;
-    font-weight: 700;
-    color: #1565c0;
-}
+    st.info("尚無資料可以統計。")
