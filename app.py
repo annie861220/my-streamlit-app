@@ -58,14 +58,14 @@ st.markdown(
         color: #1565c0;
     }
 
-    /* 篩選條件區塊 */
-    .filter-box {
-        padding: 0.8rem 1rem 0.6rem 1rem;
-        border-radius: 0.8rem;
-        background: #f8fafc;
-        border: 1px solid #e2e8f0;
-        margin-bottom: 0.8rem;
-    }
+/* 篩選條件區塊（放大、加寬、加高） */
+.filter-box {
+    padding: 1.8rem 2rem 1.4rem 2rem;   /* 四邊 padding 加大 */
+    border-radius: 1rem;
+    background: #f1f5f9;               /* 稍微更亮，層次感更好 */
+    border: 1px solid #d0d7e1;
+    margin-bottom: 1.2rem;
+}
 
     /* 明細提示文字 */
     .hint-text {
@@ -387,7 +387,7 @@ with k3:
 st.divider()
 
 # ====== 明細紀錄（可修改 / 刪除） ======
-st.subheader("明細紀錄（可修改 / 刪除）")
+st.subheader("明細紀錄")
 
 if filtered_df.empty:
     st.info("目前沒有符合條件的紀錄。")
@@ -515,7 +515,7 @@ if not df.empty:
             unsafe_allow_html=True,
         )
 
-    st.markdown("### 依月份統計（卡片式）")
+      st.markdown("### 依月份統計（卡片式）")
 
     month_stats = df.copy()
     month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
@@ -526,34 +526,39 @@ if not df.empty:
         .sort_values("月份", ascending=True)
     )
 
-    # 每個月份一張卡片，三欄排版
-    cols = [None, None, None]
-    for i, (m, row) in enumerate(by_month.iterrows()):
-        if i % 3 == 0:
-            cols = st.columns(3)
+    if by_month.empty:
+        st.info("尚無月份統計資料。")
+    else:
+        # 每個月份一張卡片，三欄排版
+        cols = [None, None, None]
+        for i, (m, row) in enumerate(by_month.iterrows()):
+            if i % 3 == 0:
+                cols = st.columns(3)
 
-        income_m = row["收入"]
-        expense_m = row["支出"]
-        net_m = income_m - expense_m
+            income_m = row["收入"]
+            expense_m = row["支出"]
+            net_m = income_m - expense_m
 
-        with cols[i % 3]:
-            st.markdown(
-                f"""
-                <div class="kpi-card">
-                    <div class="month-card-title">月份</div>
-                    <div class="month-card-month">{m}</div>
+            with cols[i % 3]:
+                st.markdown(
+                    f"""
+                    <div class="kpi-card">
+                        <div class="month-card-title">月份</div>
+                        <div class="month-card-month">{m}</div>
 
-                    <div class="month-line-label">收入</div>
-                    <div class="month-line-income">{income_m:,.0f}</div>
+                        <div class="month-line-label">收入</div>
+                        <div class="month-line-income">{income_m:,.0f}</div>
 
-                    <div class="month-line-label">支出</div>
-                    <div class="month-line-expense">{expense_m:,.0f}</div>
+                        <div class="month-line-label">支出</div>
+                        <div class="month-line-expense">{expense_m:,.0f}</div>
 
-                    <div class="month-line-label">結餘</div>
-                    <div class="month-line-net">{net_m:,.0f}</div>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+                        <div class="month-line-label">結餘</div>
+                        <div class="month-line-net">{net_m:,.0f}</div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,  # ← 這行一定要在！
+                )
+
 else:
     st.info("尚無資料可以統計。")
+
