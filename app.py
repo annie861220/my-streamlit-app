@@ -5,23 +5,18 @@ from datetime import datetime, date
 
 st.set_page_config(page_title="家芬a整合平台", layout="wide")
 
-# ====== 簡單美化：全域樣式 ======
+# ====== 全域樣式 ======
 st.markdown(
     """
     <style>
-    /* 整體背景 & 版面寬度 */
     .block-container {
         padding-top: 1.5rem;
         padding-bottom: 2rem;
         max-width: 1200px;
     }
-
-    /* 主標題下面留點空間 */
     h1 {
         margin-bottom: 0.2rem;
     }
-
-    /* 說明文字區塊 */
     .intro-box {
         padding: 0.8rem 1rem;
         border-radius: 0.8rem;
@@ -30,8 +25,6 @@ st.markdown(
         font-size: 0.95rem;
         margin-bottom: 1.2rem;
     }
-
-    /* KPI 卡片 */
     .kpi-card {
         padding: 0.9rem 1rem;
         border-radius: 0.8rem;
@@ -48,17 +41,9 @@ st.markdown(
         font-size: 1.4rem;
         font-weight: 700;
     }
-    .kpi-income .kpi-value {
-        color: #2e7d32;
-    }
-    .kpi-expense .kpi-value {
-        color: #c62828;
-    }
-    .kpi-net .kpi-value {
-        color: #1565c0;
-    }
-
-    /* 篩選條件區塊 */
+    .kpi-income .kpi-value { color: #2e7d32; }
+    .kpi-expense .kpi-value { color: #c62828; }
+    .kpi-net .kpi-value { color: #1565c0; }
     .filter-box {
         padding: 0.8rem 1rem 0.6rem 1rem;
         border-radius: 0.8rem;
@@ -66,20 +51,14 @@ st.markdown(
         border: 1px solid #e2e8f0;
         margin-bottom: 0.8rem;
     }
-
-    /* 明細提示文字 */
     .hint-text {
         font-size: 0.85rem;
         color: #666666;
         margin-bottom: 0.4rem;
     }
-
-    /* Sidebar 標題微調 */
     section[data-testid="stSidebar"] h2 {
         margin-top: 0.5rem;
     }
-
-    /* 月份卡片用的小字體 & 顏色 */
     .month-card-title {
         font-size: 0.9rem;
         color: #555555;
@@ -118,7 +97,7 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ===================== 記帳設定 =====================
+# ===================== 共用設定 =====================
 
 DATA_FILE = Path("transactions.csv")
 
@@ -158,9 +137,18 @@ PAYMENT_OPTIONS = ["現金", "魔法小卡", "大哥"]
 CURRENCY_OPTIONS = ["TWD", "USD", "JPY", "EUR", "其他"]
 WEEKDAY_LABELS = ["一", "二", "三", "四", "五", "六", "日"]
 
+# 匯率（你可以自行調整）
+FX_TO_TWD = {
+    "TWD": 1.0,
+    "USD": 32.0,
+    "JPY": 0.22,
+    "EUR": 35.0,
+    "其他": 1.0,
+}
+
+# ===================== 記帳：讀寫 =====================
 
 def load_data() -> pd.DataFrame:
-    """讀取記帳資料"""
     if DATA_FILE.exists():
         df = pd.read_csv(DATA_FILE)
         for col in COLUMNS:
@@ -174,7 +162,6 @@ def load_data() -> pd.DataFrame:
 
 
 def save_data(df: pd.DataFrame):
-    """儲存記帳資料"""
     df_to_save = df.copy()
     if not df_to_save.empty:
         df_to_save["日期"] = df_to_save["日期"].dt.strftime("%Y-%m-%d")
@@ -185,9 +172,9 @@ def save_data(df: pd.DataFrame):
 
 def show_bookkeeping_page():
     df = load_data()
-
-    # ====== 預先算「本月」與「長期」統計 ======
     today = date.today()
+
+    # 本月 / 全部 統計
     if not df.empty:
         this_month_mask = (
             (df["日期"].dt.year == today.year) &
@@ -211,8 +198,8 @@ def show_bookkeeping_page():
     else:
         all_income = all_expense = all_net = 0.0
 
-    # ====== 標題 & 說明 ======
-    st.title("📒 嘎昏 a 記帳小程式")
+    # 標題
+    st.header("📒 嘎昏 a 記帳小程式")
 
     st.markdown(
         """
@@ -226,21 +213,17 @@ def show_bookkeeping_page():
         unsafe_allow_html=True,
     )
 
-    # ====== 側邊欄：新增紀錄 ======
+    # 側邊欄新增紀錄
     st.sidebar.header("花了什麼")
 
     tx_date = st.sidebar.date_input("日期", today)
-
     category = st.sidebar.selectbox("類別", CATEGORY_OPTIONS)
     sub_options = SUBCATEGORY_MAP.get(category, ["其他"])
     subcategory = st.sidebar.selectbox("小類", sub_options)
-
     item_name = st.sidebar.text_input("項目")
     pay_method = st.sidebar.selectbox("支付方式", PAYMENT_OPTIONS)
-    currency = st.sidebar.selectbox("幣別", CURRENCY_OPTIONS, index=0)  # 預設 TWD
-
+    currency = st.sidebar.selectbox("幣別", CURRENCY_OPTIONS, index=0)
     income_or_expense = st.sidebar.radio("這筆是？", ["支出", "收入"], horizontal=True)
-
     pay_ratio = st.sidebar.number_input(
         "支付比例（%）",
         min_value=0,
@@ -248,8 +231,7 @@ def show_bookkeeping_page():
         value=100,
         step=5,
     )
-
-    amount_str = st.sidebar.text_input("金額（{}）".format(currency))
+    amount_str = st.sidebar.text_input(f"金額（{currency}）")
     note = st.sidebar.text_area("備註（選填）", height=60)
 
     submitted = st.sidebar.button("💾 Add")
@@ -271,7 +253,6 @@ def show_bookkeeping_page():
 
             income = amount if income_or_expense == "收入" else 0.0
             expense = amount if income_or_expense == "支出" else 0.0
-
             if income_or_expense == "支出":
                 actual_expense = expense * (pay_ratio / 100.0)
             else:
@@ -296,40 +277,32 @@ def show_bookkeeping_page():
             save_data(df)
             st.sidebar.success("已新增一筆紀錄 ✅")
 
-    # ====== 篩選條件 ======
+    # 篩選條件
     st.subheader("篩選條件")
-
     with st.container():
         st.markdown('<div class="filter-box">', unsafe_allow_html=True)
-
         col1, col2, col3, col4 = st.columns(4)
-
         if not df.empty:
             min_date = df["日期"].min().date()
             max_date = df["日期"].max().date()
         else:
             min_date = max_date = date.today()
-
         with col1:
             start_date = st.date_input("起始日期", min_date)
-
         with col2:
             end_date = st.date_input("結束日期", max_date)
-
         with col3:
             category_filter = st.multiselect(
                 "類別篩選（空白 = 全部）",
                 options=CATEGORY_OPTIONS,
                 default=[],
             )
-
         with col4:
             payment_filter = st.multiselect(
                 "支付方式篩選（空白 = 全部）",
                 options=PAYMENT_OPTIONS,
                 default=[],
             )
-
         st.markdown("</div>", unsafe_allow_html=True)
 
     if not df.empty:
@@ -341,16 +314,14 @@ def show_bookkeeping_page():
             mask &= df["類別"].isin(category_filter)
         if payment_filter:
             mask &= df["支付方式"].isin(payment_filter)
-
         filtered_df = df[mask].copy()
     else:
         filtered_df = df.copy()
 
     st.write(f"符合條件的筆數：**{len(filtered_df)}**")
 
-    # ====== 本月統計總覽 ======
+    # 本月統計
     st.subheader("本月統計總覽")
-
     k1, k2, k3 = st.columns(3)
     with k1:
         st.markdown(
@@ -385,19 +356,16 @@ def show_bookkeeping_page():
 
     st.divider()
 
-    # ====== 明細紀錄（可修改 / 刪除） ======
+    # 明細（可修改 / 刪除）
     st.subheader("明細紀錄（可修改 / 刪除）")
 
     if filtered_df.empty:
         st.info("目前沒有符合條件的紀錄。")
     else:
         edit_df = filtered_df.sort_values("日期", ascending=False).copy()
-
         if "ID" in edit_df.columns:
             edit_df = edit_df.drop(columns=["ID"])
-
         edit_df["日期"] = edit_df["日期"].dt.strftime("%Y-%m-%d")
-
         if "刪除" not in edit_df.columns:
             edit_df["刪除"] = False
 
@@ -420,24 +388,21 @@ def show_bookkeeping_page():
             use_container_width=True,
             hide_index=True,
             column_order=column_order,
-            key="editor",
+            key="bk_editor",
         )
 
         if st.button("💾 儲存修改 / 刪除"):
             new_df = df.copy()
-
             for idx, row in edited_df.iterrows():
                 if "刪除" in row and row["刪除"]:
                     if idx in new_df.index:
                         new_df = new_df.drop(index=idx)
                     continue
-
                 try:
                     new_date = datetime.strptime(str(row["日期"]), "%Y-%m-%d")
                 except ValueError:
                     st.error(f"第 {idx} 列日期格式錯誤，請用 YYYY-MM-DD")
                     continue
-
                 try:
                     new_income = float(row["收入"]) if str(row["收入"]).strip() != "" else 0.0
                     new_expense = float(row["支出"]) if str(row["支出"]).strip() != "" else 0.0
@@ -445,12 +410,10 @@ def show_bookkeeping_page():
                 except ValueError:
                     st.error(f"第 {idx} 列的金額或比例欄位有非數字，請修正。")
                     continue
-
                 if new_expense > 0:
                     new_actual = new_expense * (new_ratio / 100.0)
                 else:
                     new_actual = 0.0
-
                 if idx in new_df.index:
                     new_df.loc[idx, "日期"] = new_date
                     new_df.loc[idx, "星期"] = row["星期"]
@@ -464,16 +427,13 @@ def show_bookkeeping_page():
                     new_df.loc[idx, "支出比例"] = new_ratio
                     new_df.loc[idx, "實際支出"] = new_actual
                     new_df.loc[idx, "備註"] = row["備註"]
-
-            df = new_df
-            save_data(df)
+            save_data(new_df)
             st.success("已套用修改 / 刪除 ✅")
 
     st.divider()
 
-    # ====== 長期統計（全部資料） ======
+    # 長期統計
     st.subheader("長期統計（全部資料）")
-
     if not df.empty:
         c1, c2, c3 = st.columns(3)
         with c1:
@@ -508,7 +468,6 @@ def show_bookkeeping_page():
             )
 
         st.markdown("### 依月份統計（卡片式）")
-
         month_stats = df.copy()
         month_stats["月份"] = month_stats["日期"].dt.strftime("%Y-%m")
         by_month = (
@@ -522,24 +481,19 @@ def show_bookkeeping_page():
         for i, (m, row) in enumerate(by_month.iterrows()):
             if i % 3 == 0:
                 cols = st.columns(3)
-
             income_m = row["收入"]
             expense_m = row["支出"]
             net_m = income_m - expense_m
-
             with cols[i % 3]:
                 st.markdown(
                     f"""
                     <div class="kpi-card">
                         <div class="month-card-title">月份</div>
                         <div class="month-card-month">{m}</div>
-
                         <div class="month-line-label">收入</div>
                         <div class="month-line-income">{income_m:,.0f}</div>
-
                         <div class="month-line-label">支出</div>
                         <div class="month-line-expense">{expense_m:,.0f}</div>
-
                         <div class="month-line-label">結餘</div>
                         <div class="month-line-net">{net_m:,.0f}</div>
                     </div>
@@ -550,7 +504,7 @@ def show_bookkeeping_page():
         st.info("尚無資料可以統計。")
 
 
-# ===================== 分頁 2：固定資產折舊 =====================
+# ===================== 分頁 2：固定資產 =====================
 
 ASSET_FILE = Path("assets.csv")
 
@@ -571,39 +525,30 @@ ASSET_COLUMNS = [
 
 
 def load_assets() -> pd.DataFrame:
-    """讀取固定資產資料，並自動重算持有天數與每日均攤費用"""
     if ASSET_FILE.exists():
         df = pd.read_csv(ASSET_FILE)
 
-        # 補齊缺的欄位
+        # 補齊欄位
         for col in ASSET_COLUMNS:
             if col not in df.columns:
                 df[col] = "TWD" if col == "幣別" else None
 
-        # 金額 → 整數
+        # 型態處理
         df["金額"] = pd.to_numeric(df["金額"], errors="coerce").fillna(0).astype(int)
-
-        # 購買日期 → datetime
         df["購買日期"] = pd.to_datetime(df["購買日期"], errors="coerce")
 
-        # 依購買日期重新計算持有天數
         today = pd.to_datetime(date.today())
         valid_mask = df["購買日期"].notna()
         df.loc[valid_mask, "持有天數"] = (today - df.loc[valid_mask, "購買日期"]).dt.days + 1
         df.loc[~valid_mask, "持有天數"] = 1
 
-        # 持有天數 → 整數，避免是文字
         df["持有天數"] = pd.to_numeric(df["持有天數"], errors="coerce")
         df.loc[df["持有天數"].isna() | (df["持有天數"] <= 0), "持有天數"] = 1
         df["持有天數"] = df["持有天數"].astype(int)
 
-        # 每日均攤費用（保留小數）
         df["每日均攤費用"] = (df["金額"] / df["持有天數"]).round(2)
 
-        # 顯示用：只留日期
-        df["購買日期"] = df["購買日期"].dt.date
-
-        return df[ASSET_COLUMNS]
+        return df
     else:
         df = pd.DataFrame(columns=ASSET_COLUMNS)
         df.to_csv(ASSET_FILE, index=False, encoding="utf-8-sig")
@@ -611,57 +556,49 @@ def load_assets() -> pd.DataFrame:
 
 
 def save_assets(df: pd.DataFrame):
-    """儲存固定資產資料"""
     df_to_save = df.copy()
     if not df_to_save.empty:
-        df_to_save["購買日期"] = pd.to_datetime(df_to_save["購買日期"]).dt.strftime("%Y-%m-%d")
+        df_to_save["購買日期"] = pd.to_datetime(df_to_save["購買日期"], errors="coerce").dt.strftime("%Y-%m-%d")
     df_to_save.to_csv(ASSET_FILE, index=False, encoding="utf-8-sig")
 
 
 def show_asset_page():
-    st.title("🧱 固定資產折舊計算")
-
     df_assets = load_assets()
+    today = date.today()
 
+    st.header("🧱 固定資產折舊計算")
+
+    # 新增資產
     st.subheader("新增 / 登記固定資產")
-
     with st.form("asset_form"):
         col1, col2 = st.columns(2)
 
-        # 左邊：分類、小類、名稱、型號、地點
         with col1:
             asset_category = st.selectbox("分類", CATEGORY_OPTIONS)
             asset_sub_options = SUBCATEGORY_MAP.get(asset_category, ["其他"])
             asset_subcategory = st.selectbox("小類", asset_sub_options)
-
             asset_name = st.text_input("產品名稱", placeholder="例如：iPhone 16、羽絨外套…")
             brand_model = st.text_input("品牌/型號", placeholder="例如：Apple / 256GB")
             location = st.text_input("地點", placeholder="例如：家裡房間、公司…")
 
-        # 右邊：日期、幣別、金額、狀態、備註
         with col2:
-            purchase_date = st.date_input("購買日期", value=date.today())
-
+            purchase_date = st.date_input("購買日期", value=today)
             asset_currency = st.selectbox("幣別", CURRENCY_OPTIONS, index=0)
-
             amount = st.number_input(
                 "金額（依幣別）",
                 min_value=0,
                 step=100,
-                format="%d",  # 整數
+                format="%d",   # 整數
             )
-
             status = st.selectbox("當前狀態", ["服役中", "已除役"])
             note = st.text_input("備註", placeholder="例如：團購價、二手購入、含配件…")
 
         submitted = st.form_submit_button("新增資產")
 
     if submitted:
-        today = date.today()
         holding_days = (today - purchase_date).days + 1
         if holding_days <= 0:
             holding_days = 1
-
         daily_cost = round(amount / holding_days, 2) if holding_days > 0 else 0
 
         new_row = {
@@ -682,31 +619,106 @@ def show_asset_page():
         df_assets = pd.concat([df_assets, pd.DataFrame([new_row])], ignore_index=True)
         save_assets(df_assets)
         st.success("已新增固定資產資料 ✅")
+        df_assets = load_assets()
 
-    st.subheader("固定資產總覽")
+    # 資產總覽（可修改 / 刪除）
+    st.subheader("固定資產總覽（可修改 / 刪除）")
 
     if df_assets.empty:
         st.info("目前尚未登記任何固定資產。")
     else:
-        st.dataframe(df_assets, use_container_width=True)
+        display_df = df_assets.copy()
+        display_df["購買日期"] = pd.to_datetime(display_df["購買日期"], errors="coerce").dt.strftime("%Y-%m-%d")
+        if "刪除" not in display_df.columns:
+            display_df["刪除"] = False
 
-        # 依幣別統計每日均攤費用
-        daily_sum_by_ccy = (
-            df_assets.groupby("幣別")["每日均攤費用"]
-            .sum()
-            .sort_index()
+        col_order = [
+            "分類", "小類", "產品名稱", "品牌/型號",
+            "購買日期", "幣別", "金額",
+            "持有天數", "每日均攤費用",
+            "當前狀態(服役中/已除役)",
+            "地點", "備註", "刪除",
+        ]
+        col_order = [c for c in col_order if c in display_df.columns]
+
+        edited_assets = st.data_editor(
+            display_df,
+            num_rows="fixed",
+            use_container_width=True,
+            hide_index=True,
+            column_order=col_order,
+            key="asset_editor",
         )
 
-        st.markdown("**各幣別每日均攤費用：**")
-        for ccy, v in daily_sum_by_ccy.items():
-            st.markdown(f"- {ccy}：{v:,.2f}")
+        if st.button("💾 儲存資產修改 / 刪除"):
+            new_df = df_assets.copy()
+            for idx, row in edited_assets.iterrows():
+                if "刪除" in row and row["刪除"]:
+                    if idx in new_df.index:
+                        new_df = new_df.drop(index=idx)
+                    continue
 
-    # ===== 舊資料一次性匯入 =====
+                try:
+                    new_date = datetime.strptime(str(row["購買日期"]), "%Y-%m-%d")
+                except ValueError:
+                    new_date = None
+
+                try:
+                    new_amount = int(row["金額"]) if str(row["金額"]).strip() != "" else 0
+                except ValueError:
+                    st.error(f"第 {idx} 列金額格式錯誤，請輸入整數")
+                    continue
+
+                if new_date is not None:
+                    holding_days = (today - new_date.date()).days + 1
+                else:
+                    holding_days = 1
+                if holding_days <= 0:
+                    holding_days = 1
+
+                daily_cost = round(new_amount / holding_days, 2) if holding_days > 0 else 0
+
+                if idx in new_df.index:
+                    new_df.loc[idx, "分類"] = row["分類"]
+                    new_df.loc[idx, "小類"] = row["小類"]
+                    new_df.loc[idx, "產品名稱"] = row["產品名稱"]
+                    new_df.loc[idx, "品牌/型號"] = row["品牌/型號"]
+                    if new_date is not None:
+                        new_df.loc[idx, "購買日期"] = new_date
+                    new_df.loc[idx, "幣別"] = row["幣別"]
+                    new_df.loc[idx, "金額"] = new_amount
+                    new_df.loc[idx, "持有天數"] = holding_days
+                    new_df.loc[idx, "每日均攤費用"] = daily_cost
+                    new_df.loc[idx, "當前狀態(服役中/已除役)"] = row["當前狀態(服役中/已除役)"]
+                    new_df.loc[idx, "地點"] = row["地點"]
+                    new_df.loc[idx, "備註"] = row["備註"]
+
+            save_assets(new_df)
+            st.success("已套用資產修改 / 刪除 ✅")
+            df_assets = load_assets()
+
+    # 各幣別每日均攤 → 折合 TWD
+    if not df_assets.empty:
+        st.subheader("每日均攤費用（折合 TWD 顯示）")
+
+        tmp = df_assets.copy()
+        tmp["rate"] = tmp["幣別"].map(FX_TO_TWD).fillna(1.0)
+        tmp["每日均攤_TWD"] = (tmp["每日均攤費用"] * tmp["rate"]).round(2)
+
+        by_ccy = tmp.groupby("幣別")["每日均攤_TWD"].sum().sort_index()
+        total_twd = tmp["每日均攤_TWD"].sum()
+
+        st.markdown("**各幣別折合 TWD 的每日均攤費用：**")
+        for ccy, v in by_ccy.items():
+            st.markdown(f"- {ccy}：{v:,.2f} TWD")
+
+        st.markdown(f"**全部資產合計每日均攤：約 {total_twd:,.2f} TWD**")
+        st.caption("（匯率請到程式 FX_TO_TWD 常數自行調整）")
+
+    # 舊資料一次性匯入
     st.markdown("---")
     with st.expander("📥 舊資料一次性匯入（選用，不常態顯示）"):
-        st.write("你可以在下表直接輸入 / 貼上舊資料，一次性匯入固定資產清單。")
-        st.write("欄位：分類 / 小類 / 產品名稱 / 品牌/型號 / 購買日期(YYYY-MM-DD) / 幣別 / 金額 / 當前狀態(服役中/已除役) / 地點 / 備註")
-
+        st.write("在下表輸入 / 貼上舊資料，匯入後會自動重算持有天數與每日均攤費用。")
         template_rows = 5
         template_df = pd.DataFrame(columns=ASSET_COLUMNS).head(template_rows)
 
@@ -725,42 +737,39 @@ def show_asset_page():
                 st.warning("沒有有效資料可匯入（至少填一列產品名稱）。")
             else:
                 try:
-                    # 日期
                     if "購買日期" in cleaned.columns:
                         cleaned["購買日期"] = pd.to_datetime(
                             cleaned["購買日期"], errors="coerce"
-                        ).dt.date
-
-                    # 幣別：空白填 TWD
+                        )
                     if "幣別" in cleaned.columns:
                         cleaned["幣別"] = cleaned["幣別"].fillna("TWD").replace("", "TWD")
-
-                    # 金額：整數
                     cleaned["金額"] = pd.to_numeric(
                         cleaned["金額"], errors="coerce"
                     ).fillna(0).astype(int)
 
-                    # 先讓持有天數 / 每日均攤費用留空，交給下次 load_assets 自動重算
                     cleaned["持有天數"] = None
                     cleaned["每日均攤費用"] = None
 
-                    df_assets = pd.concat([df_assets, cleaned], ignore_index=True)
-                    save_assets(df_assets)
+                    df_assets2 = pd.concat([df_assets, cleaned], ignore_index=True)
+                    save_assets(df_assets2)
 
                     st.success(f"已匯入 {len(cleaned)} 筆舊資料，並加入現有資產。")
                 except Exception as e:
                     st.error(f"匯入時發生錯誤：{e}")
 
 
-# ===================== 主程式：分頁切換 =====================
+# ===================== 主程式：tabs 分頁 =====================
 
 def main():
     st.sidebar.title("功能選單")
-    page = st.sidebar.radio("選擇頁面", ["記帳", "固定資產折舊"])
+    st.title("家芬a整合平台")
 
-    if page == "記帳":
+    tab1, tab2 = st.tabs(["📒 記帳", "🧱 固定資產折舊"])
+
+    with tab1:
         show_bookkeeping_page()
-    else:
+
+    with tab2:
         show_asset_page()
 
 
