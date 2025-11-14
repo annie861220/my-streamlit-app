@@ -520,7 +520,7 @@ ASSET_COLUMNS = [
     "每日均攤費用",
     "當前狀態(服役中/已除役)",
     "地點",
-    "備註", 
+    "備註",
 ]
 
 
@@ -574,10 +574,10 @@ def show_asset_page():
         col1, col2 = st.columns(2)
 
         with col1:
-            asset_category = st.selectbox("分類", CATEGOR_OPTIONS)
+            asset_category = st.selectbox("分類", CATEGORY_OPTIONS)
             asset_sub_options = SUBCATEGORY_MAP.get(asset_category, ["其他"])
             asset_subcategory = st.selectbox("小類", asset_sub_options)
-            asset_name = st.text_input("產品名稱", placeholder="例如：iPhone 16、飲料杯…")
+            asset_name = st.text_input("產品名稱", placeholder="例如：iPhone 16、羽絨外套…")
             brand_model = st.text_input("品牌/型號", placeholder="例如：Apple / 256GB")
             location = st.text_input("地點", placeholder="例如：家裡房間、公司…")
 
